@@ -1,60 +1,91 @@
 import streamlit as st
-import requests
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
-# 1. Configuración de la página
-st.set_page_config(page_title="El Oráculo del Quijote", page_icon="📜")
-
+# ---------------------------
+# Configuración inicial
+# ---------------------------
+st.set_page_config(page_title="El Oráculo del Quijote", page_icon="📜", layout="wide")
 st.title("📜 El Oráculo del Quijote 🖋️")
-st.write("Pregúntale al modelo fine-tuneado sobre los personajes, eventos y detalles de la obra.")
+st.write("Pregúntale al modelo fine-tuneado sobre Don Quijote y su mundo.")
 
-# 2. Token de Hugging Face
-hf_token = None
-if "HF_TOKEN" in st.secrets:
-    hf_token = st.secrets["HF_TOKEN"]
-else:
-    st.warning("Necesitas un token de Hugging Face para acceder al modelo.")
-    hf_token = st.text_input("Ingresa tu token de Hugging Face:", type="password")
+# ---------------------------
+# Cargar modelo en 4-bit
+# ---------------------------
+@st.cache_resource
+def cargar_modelo(hf_token=None):
+    model_id = "sareizat-dev/qwen-quijote-merged"
 
-# 3. Endpoint del modelo fusionado
-API_URL = "https://api-inference.huggingface.co/models/sareizat-dev/qwen-quijote-merged"
-
-def query_model(prompt, hf_token):
-    headers = {"Authorization": f"Bearer {hf_token}"}
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 200,
-            "temperature": 0.7,
-            "top_p": 0.95,
-            "do_sample": True
-        }
-    }
-    response = requests.post(API_URL, headers=headers, json=payload)
-    if response.status_code != 200:
-        return f"Error: {response.status_code}, {response.text}"
-    return response.json()
-
-# 4. Lógica principal
-if hf_token:
-    pregunta_usuario = st.text_area(
-        "Ingresa tu pregunta:",
-        "Por ejemplo: ¿Quién es el escudero de Don Quijote?"
+    quant_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.float16
     )
 
-    if st.button("Obtener Respuesta"):
-        with st.spinner("Consultando al Oráculo..."):
+    tokenizer = AutoTokenizer.from_pretrained(model_id, token=hf_token, trust_remote_code=True)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    model = AutoModelForCausalLM.from_pretrained(
+        model_id,
+        quantization_config=quant_config,
+        device_map="auto",
+        token=hf_token,
+        trust_remote_code=True
+    )
+    return model, tokenizer
+
+# ---------------------------
+# Token
+# ---------------------------
+hf_token = st.secrets.get("HF_TOKEN", None)
+
+# ---------------------------
+# Interfaz principal
+# ---------------------------
+if hf_token:
+    model, tokenizer = cargar_modelo(hf_token)
+
+    pregunta = st.text_area("Tu pregunta:", "¿Quién es el escudero de Don Quijote?")
+    if st.button("Obtener respuesta"):
+        if pregunta.strip():
             prompt = f"""
-Eres un erudito experto en la obra "Don Quijote de la Mancha" de Miguel de Cervantes.
-Tu misión es responder preguntas sobre los personajes, eventos y temas del libro,
-utilizando el tono y estilo de la obra. Sé conciso y preciso.
-
-Pregunta: {pregunta_usuario}
-Respuesta:
+<|im_start|>system
+Eres un erudito experto en la obra 'Don Quijote de la Mancha'. Responde con tono clásico y preciso.
+<|im_end|>
+<|im_start|>user
+{pregunta}
+<|im_end|>
+<|im_start|>assistant
 """
-            output = query_model(prompt, hf_token)
 
-            if isinstance(output, list) and len(output) > 0 and "generated_text" in output[0]:
-                st.success("Respuesta del Oráculo:")
-                st.write(output[0]["generated_text"])
+            with st.spinner("Pensando..."):
+                inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+                with torch.no_grad():
+                    outputs = model.generate(
+                        **inputs,
+                        max_new_tokens=200,
+                        do_sample=True,
+                        temperature=0.7,
+                        top_p=0.9,
+                        pad_token_id=tokenizer.eos_token_id
+                    )
+
+            full_response = tokenizer.decode(outputs[0], skip_special_tokens=False)
+
+            # Extraer respuesta del asistente
+            start_token = "<|im_start|>assistant\n"
+            start_index = full_response.rfind(start_token)
+            if start_index != -1:
+                respuesta = full_response[start_index + len(start_token):].strip()
+                end_token = "<|im_end|>"
+                if end_token in respuesta:
+                    respuesta = respuesta.split(end_token)[0].strip()
             else:
-                st.error(f"No se pudo obtener respuesta. Detalles: {output}")
+                respuesta = full_response
+
+            st.success("Respuesta del Oráculo:")
+            st.write(respuesta)
+else:
+    st.warning("⚠️ Agrega tu `HF_TOKEN` en los Secrets de Streamlit Cloud.")
