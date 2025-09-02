@@ -25,7 +25,7 @@ def cargar_modelo():
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
             device_map=None,          # Fuerza CPU en Streamlit Cloud
-            dtype=torch.float32, ,
+            dtype=torch.float32,
             low_cpu_mem_usage=True
         )
 
