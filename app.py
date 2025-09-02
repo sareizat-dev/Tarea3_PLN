@@ -30,7 +30,8 @@ def cargar_modelo(hf_token=None):
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         quantization_config=quant_config,
-        device_map="auto",
+        device_map=None,        # fuerza CPU
+        low_cpu_mem_usage=True  # ayuda en RAM
         token=hf_token,
         trust_remote_code=True
     )
