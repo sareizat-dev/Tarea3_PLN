@@ -31,7 +31,7 @@ def cargar_modelo(hf_token=None):
         model_id,
         quantization_config=quant_config,
         device_map=None,        # fuerza CPU
-        low_cpu_mem_usage=True  # ayuda en RAM
+        low_cpu_mem_usage=True,  # ayuda en RAM
         token=hf_token,
         trust_remote_code=True
     )
