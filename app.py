@@ -14,7 +14,7 @@ st.write("Pregúntale al modelo fine-tuneado sobre los personajes, eventos y det
 def cargar_modelo():
     """Carga el modelo y el tokenizador una sola vez."""
     try:
-        model_name = "sareizat-dev/qwen-quijote-finetuned"
+        model_name = "qwen-quijote-finetuned/qwen-quijote-finetuned"
         
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
