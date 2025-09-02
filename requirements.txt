@@ -5,3 +5,5 @@ peft==0.10.0
 bitsandbytes
 accelerate
 huggingface_hub
+sentence-transformers
+datasets
