@@ -1,9 +1,8 @@
 streamlit
 torch
-transformers==4.40.1
-peft==0.10.0
+transformers==4.19.2
+peft==0.1.0
+tokenizers==0.11.6
 bitsandbytes
 accelerate
 huggingface_hub
-sentence-transformers
-datasets
