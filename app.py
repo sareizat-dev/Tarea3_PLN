@@ -1,6 +1,7 @@
 import streamlit as st
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+from peft import PeftModel
 from huggingface_hub import HfApi
 
 # 1. Configuración de la página
@@ -10,11 +11,15 @@ st.set_page_config(page_title="El Oráculo del Quijote", page_icon="📜")
 st.title("📜 El Oráculo del Quijote 🖋️")
 st.write("Pregúntale al modelo fine-tuneado sobre los personajes, eventos y detalles de la obra.")
 
-# 3. Función para cargar el modelo
+# 3. Función para cargar el modelo con el token y fusionar el adaptador
 @st.cache_resource
 def cargar_modelo(hf_token):
     try:
-        model_name = "sareizat-dev/qwen-quijote-finetuned"
+        # Nombre del modelo base original
+        model_base_name = "Qwen/Qwen1.5-1.8B-Chat"
+        
+        # Nombre de tu repositorio con los pesos del adaptador
+        adapter_name = "sareizat-dev/qwen-quijote-finetuned"
         
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
@@ -23,18 +28,26 @@ def cargar_modelo(hf_token):
             bnb_4bit_use_double_quant=True
         )
 
+        # Cargar el modelo BASE (requiere trust_remote_code para Qwen)
         model = AutoModelForCausalLM.from_pretrained(
-            model_name,
+            model_base_name,
             quantization_config=bnb_config,
             device_map="auto",
             token=hf_token,
-            trust_remote_code=True  # 👈 Añade esta línea
+            trust_remote_code=True
         )
-        tokenizer = AutoTokenizer.from_pretrained(model_name, token=hf_token, trust_remote_code=True) # 👈 Añade esta línea
         
+        # Cargar el tokenizer del modelo BASE
+        tokenizer = AutoTokenizer.from_pretrained(model_base_name, token=hf_token, trust_remote_code=True)
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
-            
+
+        # Cargar el ADAPTADOR LoRA desde tu repositorio
+        model = PeftModel.from_pretrained(model, adapter_name, token=hf_token)
+        
+        # Fusionar el adaptador con el modelo base (opcional pero recomendado)
+        model = model.merge_and_unload()
+
         return model, tokenizer
     except Exception as e:
         st.error(f"Error al cargar el modelo. Verifica tu token o la conexión. Detalles: {e}")
@@ -46,7 +59,7 @@ hf_token = None
 if "HF_TOKEN" in st.secrets:
     hf_token = st.secrets["HF_TOKEN"]
 else:
-    st.warning("Para usar la aplicación, necesitas un token de Hugging Face. El modelo es privado.")
+    st.warning("Para usar la aplicación, necesitas un token de Hugging Face.")
     hf_token = st.text_input("Ingresa tu token de Hugging Face aquí:", type="password")
 
 # 5. Lógica principal de la aplicación
