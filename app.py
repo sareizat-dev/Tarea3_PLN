@@ -7,7 +7,7 @@ st.set_page_config(page_title="El Oráculo del Quijote", page_icon="📜")
 st.title("📜 El Oráculo del Quijote 🖋️")
 st.write("Pregúntale al modelo fine-tuneado sobre los personajes, eventos y detalles de la obra.")
 
-# 2. Input para el token de Hugging Face
+# 2. Token de Hugging Face
 hf_token = None
 if "HF_TOKEN" in st.secrets:
     hf_token = st.secrets["HF_TOKEN"]
@@ -15,9 +15,10 @@ else:
     st.warning("Necesitas un token de Hugging Face para acceder al modelo.")
     hf_token = st.text_input("Ingresa tu token de Hugging Face:", type="password")
 
-# 3. Función para consultar el endpoint de Hugging Face
+# 3. Endpoint del modelo fusionado
+API_URL = "https://api-inference.huggingface.co/models/sareizat-dev/qwen-quijote-merged"
+
 def query_model(prompt, hf_token):
-    API_URL = "https://api-inference.huggingface.co/models/sareizat-dev/qwen-quijote-finetuned"
     headers = {"Authorization": f"Bearer {hf_token}"}
     payload = {
         "inputs": prompt,
