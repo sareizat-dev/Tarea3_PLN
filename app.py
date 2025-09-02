@@ -10,10 +10,9 @@ st.set_page_config(page_title="El Oráculo del Quijote", page_icon="📜")
 st.title("📜 El Oráculo del Quijote 🖋️")
 st.write("Pregúntale al modelo fine-tuneado sobre los personajes, eventos y detalles de la obra.")
 
-# 3. Función para manejar la carga del modelo con el token
+# 3. Función para cargar el modelo
 @st.cache_resource
 def cargar_modelo(hf_token):
-    """Carga el modelo y el tokenizador una sola vez."""
     try:
         model_name = "sareizat-dev/qwen-quijote-finetuned"
         
@@ -28,9 +27,10 @@ def cargar_modelo(hf_token):
             model_name,
             quantization_config=bnb_config,
             device_map="auto",
-            token=hf_token  # Pasa el token al modelo
+            token=hf_token,
+            trust_remote_code=True  # 👈 Añade esta línea
         )
-        tokenizer = AutoTokenizer.from_pretrained(model_name, token=hf_token)
+        tokenizer = AutoTokenizer.from_pretrained(model_name, token=hf_token, trust_remote_code=True) # 👈 Añade esta línea
         
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
@@ -40,20 +40,17 @@ def cargar_modelo(hf_token):
         st.error(f"Error al cargar el modelo. Verifica tu token o la conexión. Detalles: {e}")
         return None, None
 
-# 4. Input del usuario para el token de Hugging Face
+# 4. Input para el token de Hugging Face
 hf_token = None
 
-# Intenta obtener el token de los secretos de Streamlit
 if "HF_TOKEN" in st.secrets:
     hf_token = st.secrets["HF_TOKEN"]
 else:
-    # Si no se encuentra, solicita el token al usuario
     st.warning("Para usar la aplicación, necesitas un token de Hugging Face. El modelo es privado.")
     hf_token = st.text_input("Ingresa tu token de Hugging Face aquí:", type="password")
 
 # 5. Lógica principal de la aplicación
 if hf_token:
-    # Validar el token antes de cargar el modelo
     api = HfApi()
     try:
         api.whoami(token=hf_token)
@@ -61,15 +58,13 @@ if hf_token:
         model, tokenizer = cargar_modelo(hf_token)
 
         if model is not None and tokenizer is not None:
-            # 6. Interfaz para preguntas
             pregunta_usuario = st.text_area(
                 "Ingresa tu pregunta:",
-                "Por ejemplo: ¿Cuál es la verdadera identidad de Don Quijote?"
+                "Por ejemplo: ¿Quién es el escudero de Don Quijote?"
             )
 
             if st.button("Obtener Respuesta"):
                 if pregunta_usuario:
-                    # Crear el prompt para el modelo
                     prompt_chatml = f"""
 <|im_start|>system
 Eres un erudito experto en la obra "Don Quijote de la Mancha" de Miguel de Cervantes. Tu misión es responder preguntas sobre los personajes, eventos y temas del libro, utilizando el tono y estilo de la obra. Proporciona respuestas concisas y precisas basadas en la obra.
@@ -94,7 +89,6 @@ Eres un erudito experto en la obra "Don Quijote de la Mancha" de Miguel de Cerva
                                 pad_token_id=tokenizer.eos_token_id
                             )
                     
-                    # Decodificar y formatear la respuesta
                     full_response = tokenizer.decode(outputs[0], skip_special_tokens=False)
                     start_token = "<|im_start|>assistant\n"
                     start_index = full_response.rfind(start_token)
