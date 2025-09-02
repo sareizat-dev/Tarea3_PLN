@@ -1,8 +1,2 @@
 streamlit
-torch
-transformers==4.36.2
-bitsandbytes
-peft
-sentence-transformers
-accelerate
-datasets
+requests
